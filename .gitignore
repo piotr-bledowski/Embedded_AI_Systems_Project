@@ -1,0 +1,10 @@
+.venv
+dataset
+models
+__pycache__
+*.pth
+*.pt
+*.pkl
+*.ckpt
+.vscode
+.idea
