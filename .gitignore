@@ -11,4 +11,7 @@ __pycache__
 data/
 data_vggface/
 venv/
-results/
+results/*.onnx
+*.hef
+host_training/shared
+cropped_dataset
