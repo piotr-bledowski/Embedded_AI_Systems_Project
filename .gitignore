@@ -8,3 +8,7 @@ __pycache__
 *.ckpt
 .vscode
 .idea
+data/
+data_vggface/
+venv/
+results/
