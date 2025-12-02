@@ -1,0 +1,17 @@
+.venv
+dataset
+models
+__pycache__
+*.pth
+*.pt
+*.pkl
+*.ckpt
+.vscode
+.idea
+data/
+data_vggface/
+venv/
+results/*.onnx
+*.hef
+host_training/shared
+cropped_dataset
