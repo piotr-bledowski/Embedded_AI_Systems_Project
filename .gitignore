@@ -8,3 +8,7 @@ __pycache__
 *.ckpt
 .vscode
 .idea
+*.onnx
+*.hef
+host_training/shared
+cropped_dataset
