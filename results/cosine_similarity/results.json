@@ -1,5 +1,166 @@
 {
-  "0.5": {
+  "0.1": {
+    "overall_accuracy": 0.7837837837837838,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 0.9324324324324325,
+        "precision": 0.6153846153846154,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Pawel": {
+        "accuracy": 0.9594594594594594,
+        "precision": 0.7272727272727273,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Piotr": {
+        "accuracy": 0.8918918918918919,
+        "precision": 0.5,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      }
+    }
+  },
+  "0.15000000000000002": {
+    "overall_accuracy": 0.8378378378378378,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 0.9459459459459459,
+        "precision": 0.6666666666666666,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Pawel": {
+        "accuracy": 0.9594594594594594,
+        "precision": 0.7272727272727273,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Piotr": {
+        "accuracy": 0.9324324324324325,
+        "precision": 0.6153846153846154,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      }
+    }
+  },
+  "0.20000000000000004": {
+    "overall_accuracy": 0.8783783783783784,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 0.9594594594594594,
+        "precision": 0.7272727272727273,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Pawel": {
+        "accuracy": 0.972972972972973,
+        "precision": 0.8,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Piotr": {
+        "accuracy": 0.9459459459459459,
+        "precision": 0.6666666666666666,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      }
+    }
+  },
+  "0.25000000000000006": {
+    "overall_accuracy": 0.9054054054054054,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 0.972972972972973,
+        "precision": 0.8,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Pawel": {
+        "accuracy": 0.972972972972973,
+        "precision": 0.8,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Piotr": {
+        "accuracy": 0.9594594594594594,
+        "precision": 0.7272727272727273,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      }
+    }
+  },
+  "0.30000000000000004": {
+    "overall_accuracy": 0.9594594594594594,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Pawel": {
+        "accuracy": 0.972972972972973,
+        "precision": 0.8,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Piotr": {
+        "accuracy": 0.9864864864864865,
+        "precision": 0.8888888888888888,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      }
+    }
+  },
+  "0.3500000000000001": {
+    "overall_accuracy": 0.9864864864864865,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Pawel": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Piotr": {
+        "accuracy": 0.9864864864864865,
+        "precision": 0.8888888888888888,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      }
+    }
+  },
+  "0.40000000000000013": {
+    "overall_accuracy": 0.9864864864864865,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Pawel": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Piotr": {
+        "accuracy": 0.9864864864864865,
+        "precision": 0.8888888888888888,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      }
+    }
+  },
+  "0.45000000000000007": {
     "overall_accuracy": 1.0,
     "metrics_per_class": {
       "Kinga": {
@@ -22,7 +183,7 @@
       }
     }
   },
-  "0.55": {
+  "0.5000000000000001": {
     "overall_accuracy": 1.0,
     "metrics_per_class": {
       "Kinga": {
@@ -45,7 +206,30 @@
       }
     }
   },
-  "0.6000000000000001": {
+  "0.5500000000000002": {
+    "overall_accuracy": 1.0,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Pawel": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "Piotr": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      }
+    }
+  },
+  "0.6000000000000002": {
     "overall_accuracy": 1.0,
     "metrics_per_class": {
       "Kinga": {
@@ -137,7 +321,7 @@
       }
     }
   },
-  "0.8000000000000003": {
+  "0.8000000000000002": {
     "overall_accuracy": 0.8918918918918919,
     "metrics_per_class": {
       "Kinga": {
@@ -160,7 +344,7 @@
       }
     }
   },
-  "0.8500000000000003": {
+  "0.8500000000000002": {
     "overall_accuracy": 0.7972972972972973,
     "metrics_per_class": {
       "Kinga": {
@@ -183,7 +367,7 @@
       }
     }
   },
-  "0.9000000000000004": {
+  "0.9000000000000002": {
     "overall_accuracy": 0.6891891891891891,
     "metrics_per_class": {
       "Kinga": {
@@ -206,7 +390,7 @@
       }
     }
   },
-  "0.9500000000000004": {
+  "0.9500000000000003": {
     "overall_accuracy": 0.6756756756756757,
     "metrics_per_class": {
       "Kinga": {
