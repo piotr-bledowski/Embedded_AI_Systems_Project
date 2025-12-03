@@ -135,7 +135,7 @@ def compute_metrics_per_class(y_true, y_pred, classes):
     return metrics
 
 
-def plot_confusion_matrix(y_true, y_pred, classes, output_path):
+def plot_confusion_matrix(y_true, y_pred, classes, output_path, threshold=None):
     """Plot and save confusion matrix"""
     cm = confusion_matrix(y_true, y_pred, labels=classes)
     
@@ -143,7 +143,10 @@ def plot_confusion_matrix(y_true, y_pred, classes, output_path):
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                 xticklabels=classes, yticklabels=classes,
                 cbar_kws={'label': 'Count'})
-    plt.title('Confusion Matrix (MLP)', fontsize=14, fontweight='bold')
+    if threshold is not None:
+        plt.title(f'Confusion Matrix (MLP, Threshold = {threshold:.3f})', fontsize=14, fontweight='bold')
+    else:
+        plt.title('Confusion Matrix (MLP)', fontsize=14, fontweight='bold')
     plt.ylabel('True Label', fontsize=12)
     plt.xlabel('Predicted Label', fontsize=12)
     plt.tight_layout()
@@ -151,9 +154,101 @@ def plot_confusion_matrix(y_true, y_pred, classes, output_path):
     plt.close()
 
 
+def plot_training_curves(train_losses, val_losses, train_accs, val_accs, output_dir, suffix=''):
+    """Plot training curves for loss and accuracy"""
+    epochs = range(1, len(train_losses) + 1)
+    num_epochs = len(train_losses)
+    
+    # Plot loss
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(epochs, train_losses, 'b-', label='Train Loss', linewidth=2, marker='o')
+    ax.plot(epochs, val_losses, 'r-', label='Validation Loss', linewidth=2, marker='s')
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Loss', fontsize=12)
+    ax.set_title('Training and Validation Loss', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
+    # Set x-axis to only show integer epochs
+    ax.set_xticks(range(1, num_epochs + 1))
+    ax.set_xlim([0.5, num_epochs + 0.5])
+    plt.tight_layout()
+    loss_path = os.path.join(output_dir, f'loss_curves{suffix}.png')
+    plt.savefig(loss_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"✅ Loss curves saved to {loss_path}")
+    
+    # Plot accuracy
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(epochs, train_accs, 'b-', label='Train Accuracy', linewidth=2, marker='o')
+    ax.plot(epochs, val_accs, 'r-', label='Validation Accuracy', linewidth=2, marker='s')
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Accuracy', fontsize=12)
+    ax.set_title('Training and Validation Accuracy', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
+    # Set x-axis to only show integer epochs
+    ax.set_xticks(range(1, num_epochs + 1))
+    ax.set_xlim([0.5, num_epochs + 0.5])
+    plt.tight_layout()
+    acc_path = os.path.join(output_dir, f'accuracy_curves{suffix}.png')
+    plt.savefig(acc_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"✅ Accuracy curves saved to {acc_path}")
+
+
+def plot_metrics_vs_threshold_mlp(results, output_dir):
+    """Plot metrics vs threshold for all classes - separate files for each metric"""
+    thresholds = sorted(results.keys())
+    
+    # Get all classes (excluding stranger)
+    classes = set()
+    for thresh_results in results.values():
+        for cls in thresh_results['metrics_per_class'].keys():
+            if cls != STRANGER_CLASS:
+                classes.add(cls)
+    classes = sorted(list(classes))
+    
+    # Plot each metric separately
+    metrics_to_plot = ['accuracy', 'precision', 'recall']
+    
+    for metric in metrics_to_plot:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        for cls in classes:
+            values = []
+            for thresh in thresholds:
+                if cls in results[thresh]['metrics_per_class']:
+                    values.append(results[thresh]['metrics_per_class'][cls][metric])
+                else:
+                    values.append(0.0)
+            
+            ax.plot(thresholds, values, marker='o', label=cls, linewidth=2, markersize=6)
+        
+        ax.set_xlabel('Threshold', fontsize=12)
+        ax.set_ylabel(metric.capitalize(), fontsize=12)
+        ax.set_title(f'{metric.capitalize()} vs Threshold (MLP)', fontsize=14, fontweight='bold')
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim([min(thresholds), max(thresholds)])
+        # Set x-axis to show reasonable number of ticks
+        if len(thresholds) <= 15:
+            ax.set_xticks(thresholds)
+        else:
+            # Show every 2nd or 3rd threshold if too many
+            step = max(1, len(thresholds) // 15)
+            ax.set_xticks(thresholds[::step])
+        
+        plt.tight_layout()
+        output_path = os.path.join(output_dir, f'{metric}_vs_threshold.png')
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"✅ {metric.capitalize()} plot saved to {output_path}")
+
+
 def run_experiment(data_dir='data', output_dir='results/mlp', 
                    test_size=0.2, random_state=42, epochs=20, batch_size=16, lr=1e-3,
-                   stranger_approach='4class', confidence_threshold=0.7):
+                   stranger_approach='4class', confidence_threshold=0.7,
+                   threshold_min=0.4, threshold_max=0.95, threshold_step=0.05):
     """
     Run the MLP experiment
     
@@ -161,7 +256,8 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
         stranger_approach: '4class' or 'threshold'
             - '4class': Train with 4 classes including stranger
             - 'threshold': Train with 3 classes, use confidence threshold to detect strangers
-        confidence_threshold: Only used if stranger_approach='threshold'
+        confidence_threshold: Only used if stranger_approach='threshold' (single threshold)
+        threshold_min, threshold_max, threshold_step: Used for threshold sweeping when threshold approach is used
     """
     
     # Create output directory
@@ -251,9 +347,22 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
     
     print(f"\n📊 Model will have {len(unique_labels)} output classes: {unique_labels}")
     
-    # Create dataset and dataloader
-    train_dataset = EmbeddingDataset(train_embeddings, train_labels, label2idx)
+    # Split training data into train and validation sets
+    print("\n📊 Splitting training data into train and validation sets...")
+    # Convert to lists for train_test_split
+    train_emb_list = train_embeddings.tolist() if isinstance(train_embeddings, np.ndarray) else train_embeddings
+    
+    train_emb_split, val_emb_split, train_labels_split, val_labels_split = train_test_split(
+        train_emb_list, train_labels, test_size=0.2, random_state=random_state
+    )
+    
+    train_dataset = EmbeddingDataset(train_emb_split, train_labels_split, label2idx)
+    val_dataset = EmbeddingDataset(val_emb_split, val_labels_split, label2idx)
+    
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    
+    print(f"  Train: {len(train_dataset)} samples, Validation: {len(val_dataset)} samples")
     
     # Create and train MLP
     print(f"\n🧠 Training MLP classifier...")
@@ -261,9 +370,19 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(mlp.parameters(), lr=lr)
     
+    # Track metrics
+    train_losses = []
+    val_losses = []
+    train_accs = []
+    val_accs = []
+    
     for epoch in range(epochs):
+        # Training phase
         mlp.train()
-        total_loss = 0
+        train_loss = 0
+        train_correct = 0
+        train_total = 0
+        
         for X_batch, y_batch in train_loader:
             X_batch, y_batch = X_batch.to(DEVICE), y_batch.to(DEVICE)
             
@@ -272,10 +391,43 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
             loss = criterion(outputs, y_batch)
             loss.backward()
             optimizer.step()
-            total_loss += loss.item()
+            
+            train_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            train_total += y_batch.size(0)
+            train_correct += (predicted == y_batch).sum().item()
+        
+        train_loss_avg = train_loss / len(train_loader)
+        train_acc = train_correct / train_total
+        train_losses.append(train_loss_avg)
+        train_accs.append(train_acc)
+        
+        # Validation phase
+        mlp.eval()
+        val_loss = 0
+        val_correct = 0
+        val_total = 0
+        
+        with torch.no_grad():
+            for X_batch, y_batch in val_loader:
+                X_batch, y_batch = X_batch.to(DEVICE), y_batch.to(DEVICE)
+                
+                outputs = mlp(X_batch)
+                loss = criterion(outputs, y_batch)
+                
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                val_total += y_batch.size(0)
+                val_correct += (predicted == y_batch).sum().item()
+        
+        val_loss_avg = val_loss / len(val_loader)
+        val_acc = val_correct / val_total
+        val_losses.append(val_loss_avg)
+        val_accs.append(val_acc)
         
         if (epoch + 1) % 5 == 0 or epoch == 0:
-            print(f"  Epoch {epoch+1}/{epochs}, Loss: {total_loss/len(train_loader):.4f}")
+            print(f"  Epoch {epoch+1}/{epochs}, Train Loss: {train_loss_avg:.4f}, Train Acc: {train_acc:.4f}, "
+                  f"Val Loss: {val_loss_avg:.4f}, Val Acc: {val_acc:.4f}")
     
     print("✅ Training completed!")
     
@@ -308,74 +460,145 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
             test_embeddings.append(emb)
             test_labels.append(STRANGER_CLASS)
     
-    # Evaluate on test set
-    print("\n🧪 Evaluating on test set...")
-    mlp.eval()
     test_embeddings_tensor = torch.tensor(np.array(test_embeddings), dtype=torch.float32).to(DEVICE)
     
+    # Get model outputs once
+    mlp.eval()
     with torch.no_grad():
         outputs = mlp(test_embeddings_tensor)
         probabilities = torch.softmax(outputs, dim=1)
+    
+    # Handle different approaches
+    if stranger_approach == 'threshold':
+        # Test multiple thresholds
+        thresholds = np.arange(threshold_min, threshold_max + threshold_step, threshold_step)
+        print(f"\n🧪 Testing {len(thresholds)} threshold values...")
         
-        if stranger_approach == 'threshold':
+        all_results = {}
+        
+        for threshold in tqdm(thresholds, desc="Testing thresholds"):
             # Use confidence threshold approach
             max_probs, predicted = torch.max(probabilities, 1)
             y_pred = []
             for i, (max_prob, pred_idx) in enumerate(zip(max_probs, predicted)):
-                if max_prob.item() < confidence_threshold:
+                if max_prob.item() < threshold:
                     y_pred.append(STRANGER_CLASS)
                 else:
                     y_pred.append(idx2label[pred_idx.item()])
-        else:
-            # Standard classification
-            _, predicted = torch.max(outputs, 1)
-            y_pred = [idx2label[pred.item()] for pred in predicted]
+            
+            # Compute metrics
+            test_classes = set(test_labels + y_pred)
+            all_classes = sorted(list(test_classes))
+            metrics_per_class = compute_metrics_per_class(test_labels, y_pred, all_classes)
+            overall_accuracy = accuracy_score(test_labels, y_pred)
+            
+            # Save confusion matrix
+            cm_path = os.path.join(output_dir, f'confusion_matrix_thresh_{threshold:.3f}.png')
+            plot_confusion_matrix(test_labels, y_pred, all_classes, cm_path, threshold=threshold)
+            
+            all_results[threshold] = {
+                'overall_accuracy': float(overall_accuracy),
+                'metrics_per_class': metrics_per_class,
+                'confusion_matrix_path': cm_path
+            }
+        
+        # Create metrics vs threshold plots
+        print("\n📈 Creating metrics vs threshold plots...")
+        plot_metrics_vs_threshold_mlp(all_results, output_dir)
+        
+        # Save results to JSON
+        results_json = {}
+        for thresh, results in all_results.items():
+            results_json[str(thresh)] = {
+                'overall_accuracy': results['overall_accuracy'],
+                'metrics_per_class': results['metrics_per_class']
+            }
+        
+        json_path = os.path.join(output_dir, 'results.json')
+        with open(json_path, 'w') as f:
+            json.dump(results_json, f, indent=2)
+        print(f"\n✅ Results saved to {json_path}")
+        
+        # Find best threshold and save training curves for it
+        best_thresh = max(all_results.keys(), key=lambda t: all_results[t]['overall_accuracy'])
+        print(f"\n📊 Best threshold: {best_thresh:.3f} (Accuracy: {all_results[best_thresh]['overall_accuracy']:.4f})")
+        print(f"   Saving training curves for best threshold...")
+        plot_training_curves(train_losses, val_losses, train_accs, val_accs, output_dir, 
+                           suffix=f'_best_thresh_{best_thresh:.3f}')
+        
+        # Print summary
+        print("\n" + "="*60)
+        print("EXPERIMENT SUMMARY")
+        print("="*60)
+        print(f"Training classes: {training_class_list}")
+        print(f"Stranger approach: {stranger_approach}")
+        print(f"Number of thresholds tested: {len(thresholds)}")
+        print(f"Test set size: {len(test_embeddings)}")
+        print(f"\nBest threshold (by overall accuracy):")
+        print(f"  Threshold: {best_thresh:.3f}")
+        print(f"  Overall Accuracy: {all_results[best_thresh]['overall_accuracy']:.4f}")
+        print(f"\nMetrics at best threshold:")
+        for cls in train_classes:
+            if cls in all_results[best_thresh]['metrics_per_class']:
+                m = all_results[best_thresh]['metrics_per_class'][cls]
+                print(f"  {cls}:")
+                print(f"    Accuracy: {m['accuracy']:.4f}")
+                print(f"    Precision: {m['precision']:.4f}")
+                print(f"    Recall: {m['recall']:.4f}")
     
-    # Compute metrics
-    all_classes = train_classes + [STRANGER_CLASS]
-    metrics_per_class = compute_metrics_per_class(test_labels, y_pred, all_classes)
-    overall_accuracy = accuracy_score(test_labels, y_pred)
-    
-    # Save confusion matrix
-    cm_path = os.path.join(output_dir, 'confusion_matrix.png')
-    plot_confusion_matrix(test_labels, y_pred, all_classes, cm_path)
-    
-    # Save results
-    results = {
-        'overall_accuracy': float(overall_accuracy),
-        'metrics_per_class': metrics_per_class,
-        'hyperparameters': {
-            'epochs': epochs,
-            'batch_size': batch_size,
-            'learning_rate': lr,
-            'stranger_approach': stranger_approach,
-            'confidence_threshold': confidence_threshold if stranger_approach == 'threshold' else None
+    else:
+        # 4class approach - single evaluation
+        # Standard classification
+        _, predicted = torch.max(outputs, 1)
+        y_pred = [idx2label[pred.item()] for pred in predicted]
+        
+        # Compute metrics
+        test_classes = set(test_labels + y_pred)
+        all_classes = sorted(list(test_classes))
+        metrics_per_class = compute_metrics_per_class(test_labels, y_pred, all_classes)
+        overall_accuracy = accuracy_score(test_labels, y_pred)
+        
+        # Plot training curves
+        print("\n📈 Creating training curves...")
+        plot_training_curves(train_losses, val_losses, train_accs, val_accs, output_dir)
+        
+        # Save confusion matrix
+        cm_path = os.path.join(output_dir, 'confusion_matrix.png')
+        plot_confusion_matrix(test_labels, y_pred, all_classes, cm_path)
+        
+        # Save results
+        results = {
+            'overall_accuracy': float(overall_accuracy),
+            'metrics_per_class': metrics_per_class,
+            'hyperparameters': {
+                'epochs': epochs,
+                'batch_size': batch_size,
+                'learning_rate': lr,
+                'stranger_approach': stranger_approach
+            }
         }
-    }
-    
-    json_path = os.path.join(output_dir, 'results.json')
-    with open(json_path, 'w') as f:
-        json.dump(results, f, indent=2)
-    print(f"\n✅ Results saved to {json_path}")
-    
-    # Print summary
-    print("\n" + "="*60)
-    print("EXPERIMENT SUMMARY")
-    print("="*60)
-    print(f"Training classes: {training_class_list}")
-    print(f"Stranger approach: {stranger_approach}")
-    if stranger_approach == 'threshold':
-        print(f"Confidence threshold: {confidence_threshold}")
-    print(f"Test set size: {len(test_embeddings)}")
-    print(f"\nOverall Accuracy: {overall_accuracy:.4f}")
-    print(f"\nMetrics per class:")
-    for cls in train_classes:
-        if cls in metrics_per_class:
-            m = metrics_per_class[cls]
-            print(f"  {cls}:")
-            print(f"    Accuracy: {m['accuracy']:.4f}")
-            print(f"    Precision: {m['precision']:.4f}")
-            print(f"    Recall: {m['recall']:.4f}")
+        
+        json_path = os.path.join(output_dir, 'results.json')
+        with open(json_path, 'w') as f:
+            json.dump(results, f, indent=2)
+        print(f"\n✅ Results saved to {json_path}")
+        
+        # Print summary
+        print("\n" + "="*60)
+        print("EXPERIMENT SUMMARY")
+        print("="*60)
+        print(f"Training classes: {training_class_list}")
+        print(f"Stranger approach: {stranger_approach}")
+        print(f"Test set size: {len(test_embeddings)}")
+        print(f"\nOverall Accuracy: {overall_accuracy:.4f}")
+        print(f"\nMetrics per class:")
+        for cls in train_classes:
+            if cls in metrics_per_class:
+                m = metrics_per_class[cls]
+                print(f"  {cls}:")
+                print(f"    Accuracy: {m['accuracy']:.4f}")
+                print(f"    Precision: {m['precision']:.4f}")
+                print(f"    Recall: {m['recall']:.4f}")
     
     print("\n🎉 Experiment complete!")
     print(f"All results saved to: {output_dir}")
@@ -403,19 +626,40 @@ if __name__ == '__main__':
                        choices=['4class', 'threshold'],
                        help='How to handle stranger class: 4class (train with 4 classes) or threshold (use confidence threshold)')
     parser.add_argument('--confidence_threshold', type=float, default=0.7,
-                       help='Confidence threshold for stranger detection (only used with threshold approach)')
+                       help='Confidence threshold for stranger detection (only used with threshold approach, single threshold)')
+    parser.add_argument('--threshold_min', type=float, default=0.4,
+                       help='Minimum threshold value (for threshold approach sweeping)')
+    parser.add_argument('--threshold_max', type=float, default=0.95,
+                       help='Maximum threshold value (inclusive, for threshold approach sweeping)')
+    parser.add_argument('--threshold_step', type=float, default=0.05,
+                       help='Threshold step size (for threshold approach sweeping)')
     
     args = parser.parse_args()
     
+    # Automatically append stranger approach to output directory
+    # This creates separate directories for each approach
+    base_output_dir = args.output_dir
+    
+    # Build output directory path based on approach
+    if args.stranger_approach == 'threshold':
+        # For threshold approach, use a generic name since we're testing multiple thresholds
+        output_dir = os.path.join(base_output_dir, args.stranger_approach)
+    else:
+        # For 4class approach, just append the approach name
+        output_dir = os.path.join(base_output_dir, args.stranger_approach)
+    
     run_experiment(
         data_dir=args.data_dir,
-        output_dir=args.output_dir,
+        output_dir=output_dir,
         test_size=args.test_size,
         random_state=args.random_state,
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
         stranger_approach=args.stranger_approach,
-        confidence_threshold=args.confidence_threshold
+        confidence_threshold=args.confidence_threshold,
+        threshold_min=args.threshold_min,
+        threshold_max=args.threshold_max,
+        threshold_step=args.threshold_step
     )
 
