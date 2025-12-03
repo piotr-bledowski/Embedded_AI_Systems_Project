@@ -176,6 +176,45 @@ def compute_roc_auc_per_class(y_true, y_similarities, class_means, classes):
     return roc_aucs
 
 
+def compute_fpr_per_class(y_true, y_pred, main_classes):
+    """
+    Compute False Positive Rate (FPR) for each main class.
+    FPR = (stranger images misclassified as this class) / (total stranger images)
+    
+    Args:
+        y_true: True labels
+        y_pred: Predicted labels
+        main_classes: List of main classes (excluding stranger)
+    
+    Returns:
+        Dictionary mapping class name to FPR
+    """
+    fpr_dict = {}
+    
+    # Convert to numpy arrays
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    
+    # Count total stranger images
+    stranger_mask = (y_true == STRANGER_CLASS)
+    total_strangers = np.sum(stranger_mask)
+    
+    if total_strangers == 0:
+        # No stranger images, FPR is undefined
+        for cls in main_classes:
+            fpr_dict[cls] = 0.0
+        return fpr_dict
+    
+    # For each main class, count how many strangers were misclassified as it
+    for cls in main_classes:
+        # False positives: stranger images predicted as this class
+        fp = np.sum((y_true == STRANGER_CLASS) & (y_pred == cls))
+        fpr = fp / total_strangers
+        fpr_dict[cls] = float(fpr)
+    
+    return fpr_dict
+
+
 def plot_confusion_matrix(y_true, y_pred, classes, threshold, output_path):
     """Plot and save confusion matrix"""
     cm = confusion_matrix(y_true, y_pred, labels=classes)
@@ -232,6 +271,50 @@ def plot_metrics_vs_threshold(results, output_dir):
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"✅ {metric.capitalize()} plot saved to {output_path}")
+
+
+def plot_fpr_vs_threshold(results, output_dir):
+    """Plot FPR vs threshold for all main classes"""
+    thresholds = sorted(results.keys())
+    
+    # Get all main classes (excluding stranger)
+    classes = set()
+    for thresh_results in results.values():
+        if 'fpr_per_class' in thresh_results:
+            for cls in thresh_results['fpr_per_class'].keys():
+                classes.add(cls)
+    classes = sorted(list(classes))
+    
+    if len(classes) == 0:
+        print("⚠️ No FPR data to plot")
+        return
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    for cls in classes:
+        fpr_values = []
+        for thresh in thresholds:
+            if 'fpr_per_class' in results[thresh] and cls in results[thresh]['fpr_per_class']:
+                fpr_values.append(results[thresh]['fpr_per_class'][cls])
+            else:
+                fpr_values.append(0.0)
+        
+        ax.plot(thresholds, fpr_values, marker='o', label=cls, linewidth=2, markersize=6)
+    
+    ax.set_xlabel('Threshold', fontsize=12)
+    ax.set_ylabel('False Positive Rate (FPR)', fontsize=12)
+    ax.set_title('False Positive Rate vs Threshold\n(Stranger images misclassified)', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim([min(thresholds), max(thresholds)])
+    max_fpr = max([max(results[t]['fpr_per_class'].values()) if 'fpr_per_class' in results[t] and len(results[t]['fpr_per_class']) > 0 else 0 for t in thresholds])
+    ax.set_ylim([0, max_fpr * 1.1 if max_fpr > 0 else 0.1])
+    
+    plt.tight_layout()
+    output_path = os.path.join(output_dir, 'fpr_vs_threshold.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"✅ FPR plot saved to {output_path}")
 
 
 def run_experiment(data_dir='data', output_dir='results/cosine_similarity', 
@@ -350,6 +433,9 @@ def run_experiment(data_dir='data', output_dir='results/cosine_similarity',
             if cls in metrics_per_class:
                 metrics_per_class[cls]['roc_auc'] = roc_aucs[cls]
         
+        # Compute FPR for each main class
+        fpr_per_class = compute_fpr_per_class(test_labels, y_pred, train_classes)
+        
         # Overall accuracy
         overall_accuracy = accuracy_score(test_labels, y_pred)
         
@@ -360,6 +446,7 @@ def run_experiment(data_dir='data', output_dir='results/cosine_similarity',
         all_results[threshold] = {
             'overall_accuracy': float(overall_accuracy),
             'metrics_per_class': metrics_per_class,
+            'fpr_per_class': fpr_per_class,
             'confusion_matrix_path': cm_path
         }
     
@@ -368,7 +455,8 @@ def run_experiment(data_dir='data', output_dir='results/cosine_similarity',
     for thresh, results in all_results.items():
         results_json[str(thresh)] = {
             'overall_accuracy': results['overall_accuracy'],
-            'metrics_per_class': results['metrics_per_class']
+            'metrics_per_class': results['metrics_per_class'],
+            'fpr_per_class': results['fpr_per_class']
         }
     
     json_path = os.path.join(output_dir, 'results.json')
@@ -379,6 +467,27 @@ def run_experiment(data_dir='data', output_dir='results/cosine_similarity',
     # Create metrics visualization (separate files)
     plot_metrics_vs_threshold(all_results, output_dir)
     
+    # Create FPR visualization
+    plot_fpr_vs_threshold(all_results, output_dir)
+    
+    # Find best threshold and save model
+    best_thresh = max(all_results.keys(), key=lambda t: all_results[t]['overall_accuracy'])
+    
+    # Save best model
+    models_dir = 'models'
+    os.makedirs(models_dir, exist_ok=True)
+    model_path = os.path.join(models_dir, 'cosine_similarity_model.pkl')
+    model_data = {
+        'class_means': class_means,
+        'threshold': float(best_thresh),
+        'train_classes': train_classes
+    }
+    import pickle
+    with open(model_path, 'wb') as f:
+        pickle.dump(model_data, f)
+    print(f"\n✅ Best model saved to {model_path}")
+    print(f"   Threshold: {best_thresh:.3f}")
+    
     # Print summary
     print("\n" + "="*60)
     print("EXPERIMENT SUMMARY")
@@ -388,8 +497,6 @@ def run_experiment(data_dir='data', output_dir='results/cosine_similarity',
     print(f"Number of thresholds tested: {len(thresholds)}")
     print(f"Test set size: {len(test_embeddings)}")
     print(f"\nBest threshold (by overall accuracy):")
-    
-    best_thresh = max(all_results.keys(), key=lambda t: all_results[t]['overall_accuracy'])
     print(f"  Threshold: {best_thresh:.3f}")
     print(f"  Overall Accuracy: {all_results[best_thresh]['overall_accuracy']:.4f}")
     
