@@ -1,0 +1,29 @@
+{
+  "overall_accuracy": 1.0,
+  "metrics_per_class": {
+    "Kinga": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "roc_auc": 0.0
+    },
+    "Pawel": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "roc_auc": 0.0
+    },
+    "Piotr": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "roc_auc": 0.0
+    }
+  },
+  "hyperparameters": {
+    "epochs": 20,
+    "batch_size": 16,
+    "learning_rate": 0.001,
+    "stranger_approach": "4class"
+  }
+}
