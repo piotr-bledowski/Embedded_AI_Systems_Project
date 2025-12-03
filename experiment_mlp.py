@@ -336,6 +336,118 @@ def plot_fpr_vs_threshold_mlp(results, output_dir):
     print(f"✅ FPR plot saved to {output_path}")
 
 
+def compute_fpr_on_stranger_dataset_mlp(stranger_embeddings, mlp_model, label2idx, idx2label, train_classes, threshold):
+    """
+    Compute FPR on stranger dataset for MLP - how often strangers are classified as group members.
+    FPR = (strangers classified as group members) / (total strangers)
+    
+    Args:
+        stranger_embeddings: List of embeddings from stranger dataset
+        mlp_model: Trained MLP model
+        label2idx: Dictionary mapping labels to indices
+        idx2label: Dictionary mapping indices to labels
+        train_classes: List of group member class names
+        threshold: Threshold value for classification (confidence threshold)
+    
+    Returns:
+        float: FPR value (0.0 to 1.0)
+    """
+    if len(stranger_embeddings) == 0:
+        return 0.0
+    
+    stranger_embeddings_tensor = torch.tensor(np.array(stranger_embeddings), dtype=torch.float32).to(DEVICE)
+    
+    mlp_model.eval()
+    with torch.no_grad():
+        outputs = mlp_model(stranger_embeddings_tensor)
+        probabilities = torch.softmax(outputs, dim=1)
+        max_probs, predicted = torch.max(probabilities, 1)
+    
+    # Count how many strangers are classified as group members (above threshold)
+    false_positives = 0
+    
+    for max_prob, pred_idx in zip(max_probs, predicted):
+        # If confidence is above threshold, check if it's a group member
+        if max_prob.item() >= threshold:
+            pred_class = idx2label[pred_idx.item()]
+            # If predicted class is one of the group members, it's a false positive
+            if pred_class in train_classes:
+                false_positives += 1
+    
+    fpr = false_positives / len(stranger_embeddings)
+    return float(fpr)
+
+
+def load_stranger_dataset_images(stranger_dataset_dir):
+    """
+    Load images from a separate stranger dataset directory.
+    
+    Args:
+        stranger_dataset_dir: Path to directory containing stranger images
+    
+    Returns:
+        List of images (cv2 images)
+    """
+    if stranger_dataset_dir is None or not os.path.exists(stranger_dataset_dir):
+        return []
+    
+    images = []
+    
+    # Check if it's a directory of images or contains subdirectories
+    if os.path.isdir(stranger_dataset_dir):
+        for file in sorted(os.listdir(stranger_dataset_dir)):
+            if file.lower().endswith(('.jpg', '.jpeg', '.png')):
+                img_path = os.path.join(stranger_dataset_dir, file)
+                img = cv2.imread(img_path)
+                if img is not None:
+                    images.append(img)
+    
+    return images
+
+
+def plot_stranger_dataset_fpr_vs_threshold_mlp(stranger_fpr_results, output_dir):
+    """
+    Plot FPR vs threshold for stranger dataset evaluation (MLP) - gray lines
+    
+    Args:
+        stranger_fpr_results: Dictionary mapping threshold to FPR value
+        output_dir: Output directory for the plot
+    """
+    if len(stranger_fpr_results) == 0:
+        print("⚠️ No stranger dataset FPR data to plot")
+        return
+    
+    thresholds = sorted(stranger_fpr_results.keys())
+    fpr_values = [stranger_fpr_results[t] for t in thresholds]
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot with gray color
+    ax.plot(thresholds, fpr_values, marker='o', color='gray', linewidth=2, markersize=6, label='FPR')
+    
+    ax.set_xlabel('Threshold', fontsize=12)
+    ax.set_ylabel('FPR', fontsize=12)
+    ax.set_title('FPR vs Threshold (MLP)\n(Stranger Dataset Evaluation)', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim([min(thresholds), max(thresholds)])
+    max_fpr = max(fpr_values) if fpr_values else 0
+    ax.set_ylim([0, max_fpr * 1.1 if max_fpr > 0 else 0.1])
+    
+    # Set x-axis to show reasonable number of ticks
+    if len(thresholds) <= 15:
+        ax.set_xticks(thresholds)
+    else:
+        step = max(1, len(thresholds) // 15)
+        ax.set_xticks(thresholds[::step])
+    
+    plt.tight_layout()
+    output_path = os.path.join(output_dir, 'fpr_stranger_dataset_vs_threshold.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"✅ Stranger dataset FPR plot saved to {output_path}")
+
+
 def plot_fpr_vs_epochs(fpr_history, output_dir):
     """Plot FPR across epochs for each main class (MLP4)"""
     if len(fpr_history) == 0:
@@ -377,7 +489,8 @@ def plot_fpr_vs_epochs(fpr_history, output_dir):
 def run_experiment(data_dir='data', output_dir='results/mlp', 
                    test_size=0.2, random_state=42, epochs=20, batch_size=16, lr=1e-3,
                    stranger_approach='4class', confidence_threshold=0.7,
-                   threshold_min=0.4, threshold_max=0.95, threshold_step=0.05):
+                   threshold_min=0.4, threshold_max=0.95, threshold_step=0.05,
+                   stranger_dataset_dir=None):
     """
     Run the MLP experiment
     
@@ -387,6 +500,7 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
             - 'threshold': Train with 3 classes, use confidence threshold to detect strangers
         confidence_threshold: Only used if stranger_approach='threshold' (single threshold)
         threshold_min, threshold_max, threshold_step: Used for threshold sweeping when threshold approach is used
+        stranger_dataset_dir: Optional path to separate stranger dataset directory for evaluation (only for threshold approach)
     """
     
     # Create output directory
@@ -664,6 +778,38 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
         # Create FPR vs threshold plot
         plot_fpr_vs_threshold_mlp(all_results, output_dir)
         
+        # Evaluate on stranger dataset if provided (only for threshold approach)
+        stranger_fpr_results = {}
+        if stranger_dataset_dir is not None and os.path.exists(stranger_dataset_dir):
+            print(f"\n🔍 Loading and evaluating on separate stranger dataset: {stranger_dataset_dir}")
+            stranger_dataset_images = load_stranger_dataset_images(stranger_dataset_dir)
+            
+            if len(stranger_dataset_images) > 0:
+                print(f"  Found {len(stranger_dataset_images)} images in stranger dataset")
+                print(f"  Extracting embeddings...")
+                stranger_embeddings, _ = extract_embeddings(stranger_dataset_images, DEVICE, class_name="stranger_dataset")
+                
+                if len(stranger_embeddings) > 0:
+                    print(f"  Evaluating on {len(stranger_embeddings)} stranger embeddings for {len(thresholds)} thresholds...")
+                    
+                    for threshold in tqdm(thresholds, desc="Evaluating stranger dataset"):
+                        fpr = compute_fpr_on_stranger_dataset_mlp(stranger_embeddings, mlp, label2idx, idx2label, train_classes, threshold)
+                        stranger_fpr_results[threshold] = fpr
+                    
+                    # Plot FPR vs threshold for stranger dataset
+                    plot_stranger_dataset_fpr_vs_threshold_mlp(stranger_fpr_results, output_dir)
+                    
+                    # Save stranger dataset results to JSON
+                    stranger_results_json = {str(t): fpr for t, fpr in stranger_fpr_results.items()}
+                    stranger_json_path = os.path.join(output_dir, 'stranger_dataset_fpr_results.json')
+                    with open(stranger_json_path, 'w') as f:
+                        json.dump(stranger_results_json, f, indent=2)
+                    print(f"\n✅ Stranger dataset FPR results saved to {stranger_json_path}")
+                else:
+                    print("  ⚠️ No valid embeddings extracted from stranger dataset")
+            else:
+                print(f"  ⚠️ No images found in stranger dataset directory: {stranger_dataset_dir}")
+        
         # Save results to JSON
         results_json = {}
         for thresh, results in all_results.items():
@@ -832,6 +978,8 @@ if __name__ == '__main__':
                        help='Maximum threshold value (inclusive, for threshold approach sweeping)')
     parser.add_argument('--threshold_step', type=float, default=0.05,
                        help='Threshold step size (for threshold approach sweeping)')
+    parser.add_argument('--stranger_dataset_dir', type=str, default=None,
+                       help='Optional path to separate stranger dataset directory for evaluation (only for threshold approach)')
     
     args = parser.parse_args()
     
@@ -859,6 +1007,7 @@ if __name__ == '__main__':
         confidence_threshold=args.confidence_threshold,
         threshold_min=args.threshold_min,
         threshold_max=args.threshold_max,
-        threshold_step=args.threshold_step
+        threshold_step=args.threshold_step,
+        stranger_dataset_dir=args.stranger_dataset_dir
     )
 

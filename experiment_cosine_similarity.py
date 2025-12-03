@@ -317,9 +317,110 @@ def plot_fpr_vs_threshold(results, output_dir):
     print(f"✅ FPR plot saved to {output_path}")
 
 
+def compute_fpr_on_stranger_dataset(stranger_embeddings, class_means, train_classes, threshold):
+    """
+    Compute FPR on stranger dataset - how often strangers are classified as group members.
+    FPR = (strangers classified as group members) / (total strangers)
+    
+    Args:
+        stranger_embeddings: List of embeddings from stranger dataset
+        class_means: Dictionary mapping class names to mean embeddings
+        train_classes: List of group member class names
+        threshold: Threshold value for classification
+    
+    Returns:
+        float: FPR value (0.0 to 1.0)
+    """
+    if len(stranger_embeddings) == 0:
+        return 0.0
+    
+    stranger_embeddings = np.array(stranger_embeddings)
+    
+    # Count how many strangers are classified as group members (above threshold)
+    false_positives = 0
+    
+    for emb in stranger_embeddings:
+        pred_class, best_similarity = predict_class(emb, class_means, threshold)
+        # If predicted class is one of the group members (not STRANGER_CLASS), it's a false positive
+        if pred_class in train_classes:
+            false_positives += 1
+    
+    fpr = false_positives / len(stranger_embeddings)
+    return float(fpr)
+
+
+def load_stranger_dataset_images(stranger_dataset_dir):
+    """
+    Load images from a separate stranger dataset directory.
+    
+    Args:
+        stranger_dataset_dir: Path to directory containing stranger images
+    
+    Returns:
+        List of images (cv2 images)
+    """
+    if stranger_dataset_dir is None or not os.path.exists(stranger_dataset_dir):
+        return []
+    
+    images = []
+    
+    # Check if it's a directory of images or contains subdirectories
+    if os.path.isdir(stranger_dataset_dir):
+        for file in sorted(os.listdir(stranger_dataset_dir)):
+            if file.lower().endswith(('.jpg', '.jpeg', '.png')):
+                img_path = os.path.join(stranger_dataset_dir, file)
+                img = cv2.imread(img_path)
+                if img is not None:
+                    images.append(img)
+    
+    return images
+
+
+def plot_stranger_dataset_fpr_vs_threshold(stranger_fpr_results, output_dir):
+    """
+    Plot FPR vs threshold for stranger dataset evaluation - gray lines
+    
+    Args:
+        stranger_fpr_results: Dictionary mapping threshold to FPR value
+        output_dir: Output directory for the plot
+    """
+    if len(stranger_fpr_results) == 0:
+        print("⚠️ No stranger dataset FPR data to plot")
+        return
+    
+    thresholds = sorted(stranger_fpr_results.keys())
+    fpr_values = [stranger_fpr_results[t] for t in thresholds]
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot with gray color
+    ax.plot(thresholds, fpr_values, marker='o', color='gray', linewidth=2, markersize=6, label='FPR')
+    
+    ax.set_xlabel('Threshold', fontsize=12)
+    ax.set_ylabel('FPR', fontsize=12)
+    ax.set_title('FPR vs Threshold\n(Stranger Dataset Evaluation)', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim([min(thresholds), max(thresholds)])
+    max_fpr = max(fpr_values) if fpr_values else 0
+    ax.set_ylim([0, max_fpr * 1.1 if max_fpr > 0 else 0.1])
+    
+    plt.tight_layout()
+    output_path = os.path.join(output_dir, 'fpr_stranger_dataset_vs_threshold.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"✅ Stranger dataset FPR plot saved to {output_path}")
+
+
 def run_experiment(data_dir='data', output_dir='results/cosine_similarity', 
-                   thresholds=None, test_size=0.2, random_state=42):
-    """Run the cosine similarity experiment"""
+                   thresholds=None, test_size=0.2, random_state=42,
+                   stranger_dataset_dir=None):
+    """
+    Run the cosine similarity experiment
+    
+    Args:
+        stranger_dataset_dir: Optional path to separate stranger dataset directory for evaluation
+    """
     
     if thresholds is None:
         thresholds = np.arange(0.3, 0.95 + 0.05, 0.05)
@@ -470,6 +571,38 @@ def run_experiment(data_dir='data', output_dir='results/cosine_similarity',
     # Create FPR visualization
     plot_fpr_vs_threshold(all_results, output_dir)
     
+    # Evaluate on stranger dataset if provided
+    stranger_fpr_results = {}
+    if stranger_dataset_dir is not None and os.path.exists(stranger_dataset_dir):
+        print(f"\n🔍 Loading and evaluating on separate stranger dataset: {stranger_dataset_dir}")
+        stranger_dataset_images = load_stranger_dataset_images(stranger_dataset_dir)
+        
+        if len(stranger_dataset_images) > 0:
+            print(f"  Found {len(stranger_dataset_images)} images in stranger dataset")
+            print(f"  Extracting embeddings...")
+            stranger_embeddings, _ = extract_embeddings(stranger_dataset_images, DEVICE, class_name="stranger_dataset")
+            
+            if len(stranger_embeddings) > 0:
+                print(f"  Evaluating on {len(stranger_embeddings)} stranger embeddings for {len(thresholds)} thresholds...")
+                
+                for threshold in tqdm(thresholds, desc="Evaluating stranger dataset"):
+                    fpr = compute_fpr_on_stranger_dataset(stranger_embeddings, class_means, train_classes, threshold)
+                    stranger_fpr_results[threshold] = fpr
+                
+                # Plot FPR vs threshold for stranger dataset
+                plot_stranger_dataset_fpr_vs_threshold(stranger_fpr_results, output_dir)
+                
+                # Save stranger dataset results to JSON
+                stranger_results_json = {str(t): fpr for t, fpr in stranger_fpr_results.items()}
+                stranger_json_path = os.path.join(output_dir, 'stranger_dataset_fpr_results.json')
+                with open(stranger_json_path, 'w') as f:
+                    json.dump(stranger_results_json, f, indent=2)
+                print(f"\n✅ Stranger dataset FPR results saved to {stranger_json_path}")
+            else:
+                print("  ⚠️ No valid embeddings extracted from stranger dataset")
+        else:
+            print(f"  ⚠️ No images found in stranger dataset directory: {stranger_dataset_dir}")
+    
     # Find best threshold and save model
     best_thresh = max(all_results.keys(), key=lambda t: all_results[t]['overall_accuracy'])
     
@@ -532,6 +665,8 @@ if __name__ == '__main__':
                        help='Test set size ratio (0.0-1.0)')
     parser.add_argument('--random_state', type=int, default=42,
                        help='Random state for train/test split')
+    parser.add_argument('--stranger_dataset_dir', type=str, default=None,
+                       help='Optional path to separate stranger dataset directory for evaluation')
     
     args = parser.parse_args()
     
@@ -543,6 +678,7 @@ if __name__ == '__main__':
         output_dir=args.output_dir,
         thresholds=thresholds,
         test_size=args.test_size,
-        random_state=args.random_state
+        random_state=args.random_state,
+        stranger_dataset_dir=args.stranger_dataset_dir
     )
 
