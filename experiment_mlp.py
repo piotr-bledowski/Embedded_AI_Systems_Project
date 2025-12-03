@@ -284,33 +284,57 @@ def plot_metrics_vs_threshold_mlp(results, output_dir):
         print(f"✅ {metric.capitalize()} plot saved to {output_path}")
 
 
-def plot_fpr_vs_threshold_mlp(results, output_dir):
-    """Plot FPR vs threshold for all main classes (MLP)"""
+def compute_overall_fpr(y_true, y_pred):
+    """
+    Compute overall FPR: (stranger images misclassified as any main class) / (total stranger images)
+    """
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    
+    # Count total stranger images
+    stranger_mask = (y_true == STRANGER_CLASS)
+    total_strangers = np.sum(stranger_mask)
+    
+    if total_strangers == 0:
+        return 0.0
+    
+    # Count strangers misclassified as any main class (not as stranger)
+    misclassified = np.sum((y_true == STRANGER_CLASS) & (y_pred != STRANGER_CLASS))
+    fpr = misclassified / total_strangers
+    
+    return float(fpr)
+
+
+def plot_fpr_vs_threshold_mlp(results, output_dir, test_labels, train_classes):
+    """Plot overall FPR vs threshold (single line) for MLP"""
     thresholds = sorted(results.keys())
     
-    # Get all main classes (excluding stranger)
-    classes = set()
-    for thresh_results in results.values():
-        if 'fpr_per_class' in thresh_results:
-            for cls in thresh_results['fpr_per_class'].keys():
-                classes.add(cls)
-    classes = sorted(list(classes))
-    
-    if len(classes) == 0:
+    if len(thresholds) == 0:
         print("⚠️ No FPR data to plot")
         return
     
+    # Compute overall FPR for each threshold
+    overall_fpr_values = []
+    
+    for thresh in thresholds:
+        if 'y_pred' in results[thresh]:
+            # Use stored predictions if available
+            overall_fpr = compute_overall_fpr(test_labels, results[thresh]['y_pred'])
+            overall_fpr_values.append(overall_fpr)
+        elif 'fpr_per_class' in results[thresh]:
+            # Fallback: sum per-class FPRs (approximation)
+            fpr_dict = results[thresh]['fpr_per_class']
+            if len(fpr_dict) > 0:
+                overall_fpr = sum(fpr_dict.values())
+                overall_fpr_values.append(overall_fpr)
+            else:
+                overall_fpr_values.append(0.0)
+        else:
+            overall_fpr_values.append(0.0)
+    
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    for cls in classes:
-        fpr_values = []
-        for thresh in thresholds:
-            if 'fpr_per_class' in results[thresh] and cls in results[thresh]['fpr_per_class']:
-                fpr_values.append(results[thresh]['fpr_per_class'][cls])
-            else:
-                fpr_values.append(0.0)
-        
-        ax.plot(thresholds, fpr_values, marker='o', label=cls, linewidth=2, markersize=6)
+    ax.plot(thresholds, overall_fpr_values, marker='o', linewidth=2, markersize=6, label='FPR', color='#e74c3c')
     
     ax.set_xlabel('Threshold', fontsize=12)
     ax.set_ylabel('False Positive Rate (FPR)', fontsize=12)
@@ -318,8 +342,7 @@ def plot_fpr_vs_threshold_mlp(results, output_dir):
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.set_xlim([min(thresholds), max(thresholds)])
-    max_fpr_vals = [max(results[t]['fpr_per_class'].values()) if 'fpr_per_class' in results[t] and len(results[t]['fpr_per_class']) > 0 else 0 for t in thresholds]
-    max_fpr = max(max_fpr_vals) if max_fpr_vals else 0
+    max_fpr = max(overall_fpr_values) if overall_fpr_values else 0
     ax.set_ylim([0, max_fpr * 1.1 if max_fpr > 0 else 0.1])
     
     # Set x-axis to show reasonable number of ticks
@@ -448,26 +471,28 @@ def plot_stranger_dataset_fpr_vs_threshold_mlp(stranger_fpr_results, output_dir)
     print(f"✅ Stranger dataset FPR plot saved to {output_path}")
 
 
-def plot_fpr_vs_epochs(fpr_history, output_dir):
-    """Plot FPR across epochs for each main class (MLP4)"""
+def plot_fpr_vs_epochs(fpr_history, output_dir, val_labels_for_fpr, train_classes):
+    """Plot overall FPR across epochs (single line) for MLP4"""
     if len(fpr_history) == 0:
         print("⚠️ No FPR history to plot")
         return
     
     epochs = range(1, len(fpr_history) + 1)
     
-    # Get all classes from first epoch
-    classes = sorted(list(fpr_history[0].keys()))
-    
-    if len(classes) == 0:
-        print("⚠️ No FPR data to plot")
-        return
+    # fpr_history now contains overall FPR values (floats) directly
+    overall_fpr_values = []
+    for epoch_fpr in fpr_history:
+        if isinstance(epoch_fpr, dict):
+            # Legacy: if it's a dict, sum the values
+            overall_fpr = sum(epoch_fpr.values()) if epoch_fpr else 0.0
+            overall_fpr_values.append(overall_fpr)
+        else:
+            # New: it's already a float (overall FPR)
+            overall_fpr_values.append(float(epoch_fpr))
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    for cls in classes:
-        fpr_values = [fpr_history[epoch-1].get(cls, 0.0) for epoch in epochs]
-        ax.plot(epochs, fpr_values, marker='o', label=cls, linewidth=2, markersize=6)
+    ax.plot(epochs, overall_fpr_values, marker='o', linewidth=2, markersize=6, label='FPR', color='#e74c3c')
     
     ax.set_xlabel('Epoch', fontsize=12)
     ax.set_ylabel('False Positive Rate (FPR)', fontsize=12)
@@ -476,7 +501,7 @@ def plot_fpr_vs_epochs(fpr_history, output_dir):
     ax.grid(True, alpha=0.3)
     ax.set_xticks(range(1, len(epochs) + 1))
     ax.set_xlim([0.5, len(epochs) + 0.5])
-    max_fpr = max([max(epoch_fpr.values()) if epoch_fpr else 0 for epoch_fpr in fpr_history])
+    max_fpr = max(overall_fpr_values) if overall_fpr_values else 0
     ax.set_ylim([0, max_fpr * 1.1 if max_fpr > 0 else 0.1])
     
     plt.tight_layout()
@@ -685,9 +710,9 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
                 _, val_predicted = torch.max(val_outputs, 1)
                 val_y_pred = [idx2label[pred.item()] for pred in val_predicted]
             
-            # Compute FPR for this epoch
-            epoch_fpr = compute_fpr_per_class(val_labels_for_fpr, val_y_pred, train_classes)
-            fpr_history.append(epoch_fpr)
+            # Compute overall FPR for this epoch (strangers misclassified as any main class)
+            overall_fpr = compute_overall_fpr(val_labels_for_fpr, val_y_pred)
+            fpr_history.append(overall_fpr)
         
         if (epoch + 1) % 5 == 0 or epoch == 0:
             print(f"  Epoch {epoch+1}/{epochs}, Train Loss: {train_loss_avg:.4f}, Train Acc: {train_acc:.4f}, "
@@ -768,6 +793,7 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
                 'overall_accuracy': float(overall_accuracy),
                 'metrics_per_class': metrics_per_class,
                 'fpr_per_class': fpr_per_class,
+                'y_pred': y_pred,  # Store predictions for FPR computation
                 'confusion_matrix_path': cm_path
             }
         
@@ -776,7 +802,7 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
         plot_metrics_vs_threshold_mlp(all_results, output_dir)
         
         # Create FPR vs threshold plot
-        plot_fpr_vs_threshold_mlp(all_results, output_dir)
+        plot_fpr_vs_threshold_mlp(all_results, output_dir, test_labels, train_classes)
         
         # Evaluate on stranger dataset if provided (only for threshold approach)
         stranger_fpr_results = {}
@@ -886,7 +912,7 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
         # Plot FPR across epochs
         if len(fpr_history) > 0:
             print("\n📈 Creating FPR vs epochs plot...")
-            plot_fpr_vs_epochs(fpr_history, output_dir)
+            plot_fpr_vs_epochs(fpr_history, output_dir, val_labels_for_fpr, train_classes)
         
         # Compute FPR on test set for final evaluation
         fpr_per_class = compute_fpr_per_class(test_labels, y_pred, train_classes)

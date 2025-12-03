@@ -273,33 +273,58 @@ def plot_metrics_vs_threshold(results, output_dir):
         print(f"✅ {metric.capitalize()} plot saved to {output_path}")
 
 
-def plot_fpr_vs_threshold(results, output_dir):
-    """Plot FPR vs threshold for all main classes"""
+def compute_overall_fpr(y_true, y_pred):
+    """
+    Compute overall FPR: (stranger images misclassified as any main class) / (total stranger images)
+    """
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    
+    # Count total stranger images
+    stranger_mask = (y_true == STRANGER_CLASS)
+    total_strangers = np.sum(stranger_mask)
+    
+    if total_strangers == 0:
+        return 0.0
+    
+    # Count strangers misclassified as any main class (not as stranger)
+    misclassified = np.sum((y_true == STRANGER_CLASS) & (y_pred != STRANGER_CLASS))
+    fpr = misclassified / total_strangers
+    
+    return float(fpr)
+
+
+def plot_fpr_vs_threshold(results, output_dir, test_labels, train_classes):
+    """Plot overall FPR vs threshold (single line)"""
     thresholds = sorted(results.keys())
     
-    # Get all main classes (excluding stranger)
-    classes = set()
-    for thresh_results in results.values():
-        if 'fpr_per_class' in thresh_results:
-            for cls in thresh_results['fpr_per_class'].keys():
-                classes.add(cls)
-    classes = sorted(list(classes))
-    
-    if len(classes) == 0:
+    if len(thresholds) == 0:
         print("⚠️ No FPR data to plot")
         return
     
+    # Compute overall FPR for each threshold from stored predictions
+    overall_fpr_values = []
+    
+    for thresh in thresholds:
+        if 'y_pred' in results[thresh]:
+            # Use stored predictions if available
+            overall_fpr = compute_overall_fpr(test_labels, results[thresh]['y_pred'])
+            overall_fpr_values.append(overall_fpr)
+        elif 'fpr_per_class' in results[thresh]:
+            # Fallback: sum per-class FPRs (approximation)
+            fpr_dict = results[thresh]['fpr_per_class']
+            if len(fpr_dict) > 0:
+                # Sum gives total misclassification rate
+                overall_fpr = sum(fpr_dict.values())
+                overall_fpr_values.append(overall_fpr)
+            else:
+                overall_fpr_values.append(0.0)
+        else:
+            overall_fpr_values.append(0.0)
+    
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    for cls in classes:
-        fpr_values = []
-        for thresh in thresholds:
-            if 'fpr_per_class' in results[thresh] and cls in results[thresh]['fpr_per_class']:
-                fpr_values.append(results[thresh]['fpr_per_class'][cls])
-            else:
-                fpr_values.append(0.0)
-        
-        ax.plot(thresholds, fpr_values, marker='o', label=cls, linewidth=2, markersize=6)
+    ax.plot(thresholds, overall_fpr_values, marker='o', linewidth=2, markersize=6, label='FPR', color='#e74c3c')
     
     ax.set_xlabel('Threshold', fontsize=12)
     ax.set_ylabel('False Positive Rate (FPR)', fontsize=12)
@@ -307,7 +332,7 @@ def plot_fpr_vs_threshold(results, output_dir):
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.set_xlim([min(thresholds), max(thresholds)])
-    max_fpr = max([max(results[t]['fpr_per_class'].values()) if 'fpr_per_class' in results[t] and len(results[t]['fpr_per_class']) > 0 else 0 for t in thresholds])
+    max_fpr = max(overall_fpr_values) if overall_fpr_values else 0
     ax.set_ylim([0, max_fpr * 1.1 if max_fpr > 0 else 0.1])
     
     plt.tight_layout()
@@ -548,6 +573,7 @@ def run_experiment(data_dir='data', output_dir='results/cosine_similarity',
             'overall_accuracy': float(overall_accuracy),
             'metrics_per_class': metrics_per_class,
             'fpr_per_class': fpr_per_class,
+            'y_pred': y_pred,  # Store predictions for FPR computation
             'confusion_matrix_path': cm_path
         }
     
@@ -569,7 +595,7 @@ def run_experiment(data_dir='data', output_dir='results/cosine_similarity',
     plot_metrics_vs_threshold(all_results, output_dir)
     
     # Create FPR visualization
-    plot_fpr_vs_threshold(all_results, output_dir)
+    plot_fpr_vs_threshold(all_results, output_dir, test_labels, train_classes)
     
     # Evaluate on stranger dataset if provided
     stranger_fpr_results = {}

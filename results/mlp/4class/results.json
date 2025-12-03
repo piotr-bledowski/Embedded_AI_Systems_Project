@@ -1,9 +1,9 @@
 {
-  "overall_accuracy": 1.0,
+  "overall_accuracy": 0.9375,
   "metrics_per_class": {
     "Kinga": {
-      "accuracy": 1.0,
-      "precision": 1.0,
+      "accuracy": 0.9375,
+      "precision": 0.6666666666666666,
       "recall": 1.0,
       "roc_auc": 0.0
     },
@@ -21,10 +21,10 @@
     }
   },
   "fpr_per_class": {
-    "Kinga": 0.0,
+    "Kinga": 0.1,
     "Pawel": 0.0,
     "Piotr": 0.0,
-    "stranger": 1.0
+    "stranger": 0.9
   },
   "hyperparameters": {
     "epochs": 20,
