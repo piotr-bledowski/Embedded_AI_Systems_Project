@@ -20,6 +20,12 @@
       "roc_auc": 0.0
     }
   },
+  "fpr_per_class": {
+    "Kinga": 0.0,
+    "Pawel": 0.0,
+    "Piotr": 0.0,
+    "stranger": 1.0
+  },
   "hyperparameters": {
     "epochs": 20,
     "batch_size": 16,

@@ -1,10 +1,10 @@
 {
   "0.4": {
-    "overall_accuracy": 0.3548387096774194,
+    "overall_accuracy": 0.4032258064516129,
     "metrics_per_class": {
       "Kinga": {
-        "accuracy": 0.7580645161290323,
-        "precision": 0.21052631578947367,
+        "accuracy": 0.8064516129032258,
+        "precision": 0.25,
         "recall": 1.0,
         "roc_auc": 0.0
       },
@@ -20,14 +20,19 @@
         "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.24,
+      "Pawel": 0.26,
+      "Piotr": 0.24
     }
   },
   "0.45": {
-    "overall_accuracy": 0.6290322580645161,
+    "overall_accuracy": 0.6129032258064516,
     "metrics_per_class": {
       "Kinga": {
-        "accuracy": 0.8870967741935484,
-        "precision": 0.36363636363636365,
+        "accuracy": 0.8709677419354839,
+        "precision": 0.3333333333333333,
         "recall": 1.0,
         "roc_auc": 0.0
       },
@@ -43,20 +48,25 @@
         "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.16,
+      "Pawel": 0.16,
+      "Piotr": 0.16
     }
   },
   "0.5": {
     "overall_accuracy": 0.7419354838709677,
     "metrics_per_class": {
       "Kinga": {
-        "accuracy": 0.9193548387096774,
-        "precision": 0.4444444444444444,
+        "accuracy": 0.9516129032258065,
+        "precision": 0.5714285714285714,
         "recall": 1.0,
         "roc_auc": 0.0
       },
       "Pawel": {
-        "accuracy": 0.9193548387096774,
-        "precision": 0.4444444444444444,
+        "accuracy": 0.8870967741935484,
+        "precision": 0.36363636363636365,
         "recall": 1.0,
         "roc_auc": 0.0
       },
@@ -66,14 +76,19 @@
         "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.06,
+      "Pawel": 0.14,
+      "Piotr": 0.12
     }
   },
   "0.55": {
     "overall_accuracy": 0.8548387096774194,
     "metrics_per_class": {
       "Kinga": {
-        "accuracy": 0.967741935483871,
-        "precision": 0.6666666666666666,
+        "accuracy": 0.9838709677419355,
+        "precision": 0.8,
         "recall": 1.0,
         "roc_auc": 0.0
       },
@@ -84,14 +99,47 @@
         "roc_auc": 0.0
       },
       "Piotr": {
-        "accuracy": 0.9516129032258065,
-        "precision": 0.5714285714285714,
+        "accuracy": 0.9354838709677419,
+        "precision": 0.5,
         "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.02,
+      "Pawel": 0.08,
+      "Piotr": 0.08
     }
   },
   "0.6": {
+    "overall_accuracy": 0.9032258064516129,
+    "metrics_per_class": {
+      "Kinga": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 0.0
+      },
+      "Pawel": {
+        "accuracy": 0.9354838709677419,
+        "precision": 0.5,
+        "recall": 1.0,
+        "roc_auc": 0.0
+      },
+      "Piotr": {
+        "accuracy": 0.967741935483871,
+        "precision": 0.6666666666666666,
+        "recall": 1.0,
+        "roc_auc": 0.0
+      }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.0,
+      "Pawel": 0.08,
+      "Piotr": 0.04
+    }
+  },
+  "0.6499999999999999": {
     "overall_accuracy": 0.9354838709677419,
     "metrics_per_class": {
       "Kinga": {
@@ -112,29 +160,11 @@
         "recall": 1.0,
         "roc_auc": 0.0
       }
-    }
-  },
-  "0.6499999999999999": {
-    "overall_accuracy": 0.9516129032258065,
-    "metrics_per_class": {
-      "Kinga": {
-        "accuracy": 1.0,
-        "precision": 1.0,
-        "recall": 1.0,
-        "roc_auc": 0.0
-      },
-      "Pawel": {
-        "accuracy": 0.967741935483871,
-        "precision": 0.6666666666666666,
-        "recall": 1.0,
-        "roc_auc": 0.0
-      },
-      "Piotr": {
-        "accuracy": 0.9838709677419355,
-        "precision": 0.8,
-        "recall": 1.0,
-        "roc_auc": 0.0
-      }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.0,
+      "Pawel": 0.04,
+      "Piotr": 0.04
     }
   },
   "0.7": {
@@ -158,10 +188,15 @@
         "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.0,
+      "Pawel": 0.04,
+      "Piotr": 0.02
     }
   },
   "0.75": {
-    "overall_accuracy": 1.0,
+    "overall_accuracy": 0.967741935483871,
     "metrics_per_class": {
       "Kinga": {
         "accuracy": 1.0,
@@ -170,17 +205,22 @@
         "roc_auc": 0.0
       },
       "Pawel": {
-        "accuracy": 1.0,
-        "precision": 1.0,
+        "accuracy": 0.9838709677419355,
+        "precision": 0.8,
         "recall": 1.0,
         "roc_auc": 0.0
       },
       "Piotr": {
-        "accuracy": 1.0,
-        "precision": 1.0,
+        "accuracy": 0.9838709677419355,
+        "precision": 0.8,
         "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.0,
+      "Pawel": 0.02,
+      "Piotr": 0.02
     }
   },
   "0.7999999999999999": {
@@ -204,6 +244,11 @@
         "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.0,
+      "Pawel": 0.0,
+      "Piotr": 0.0
     }
   },
   "0.8499999999999999": {
@@ -227,10 +272,15 @@
         "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.0,
+      "Pawel": 0.0,
+      "Piotr": 0.0
     }
   },
   "0.8999999999999999": {
-    "overall_accuracy": 0.9354838709677419,
+    "overall_accuracy": 0.9838709677419355,
     "metrics_per_class": {
       "Kinga": {
         "accuracy": 0.9838709677419355,
@@ -245,11 +295,16 @@
         "roc_auc": 0.0
       },
       "Piotr": {
-        "accuracy": 0.9516129032258065,
+        "accuracy": 1.0,
         "precision": 1.0,
-        "recall": 0.25,
+        "recall": 1.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.0,
+      "Pawel": 0.0,
+      "Piotr": 0.0
     }
   },
   "0.9499999999999998": {
@@ -273,6 +328,11 @@
         "recall": 0.0,
         "roc_auc": 0.0
       }
+    },
+    "fpr_per_class": {
+      "Kinga": 0.0,
+      "Pawel": 0.0,
+      "Piotr": 0.0
     }
   }
 }

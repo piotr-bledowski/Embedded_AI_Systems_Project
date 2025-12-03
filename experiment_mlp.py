@@ -135,6 +135,45 @@ def compute_metrics_per_class(y_true, y_pred, classes):
     return metrics
 
 
+def compute_fpr_per_class(y_true, y_pred, main_classes):
+    """
+    Compute False Positive Rate (FPR) for each main class.
+    FPR = (stranger images misclassified as this class) / (total stranger images)
+    
+    Args:
+        y_true: True labels
+        y_pred: Predicted labels
+        main_classes: List of main classes (excluding stranger)
+    
+    Returns:
+        Dictionary mapping class name to FPR
+    """
+    fpr_dict = {}
+    
+    # Convert to numpy arrays
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    
+    # Count total stranger images
+    stranger_mask = (y_true == STRANGER_CLASS)
+    total_strangers = np.sum(stranger_mask)
+    
+    if total_strangers == 0:
+        # No stranger images, FPR is undefined
+        for cls in main_classes:
+            fpr_dict[cls] = 0.0
+        return fpr_dict
+    
+    # For each main class, count how many strangers were misclassified as it
+    for cls in main_classes:
+        # False positives: stranger images predicted as this class
+        fp = np.sum((y_true == STRANGER_CLASS) & (y_pred == cls))
+        fpr = fp / total_strangers
+        fpr_dict[cls] = float(fpr)
+    
+    return fpr_dict
+
+
 def plot_confusion_matrix(y_true, y_pred, classes, output_path, threshold=None):
     """Plot and save confusion matrix"""
     cm = confusion_matrix(y_true, y_pred, labels=classes)
@@ -243,6 +282,96 @@ def plot_metrics_vs_threshold_mlp(results, output_dir):
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"✅ {metric.capitalize()} plot saved to {output_path}")
+
+
+def plot_fpr_vs_threshold_mlp(results, output_dir):
+    """Plot FPR vs threshold for all main classes (MLP)"""
+    thresholds = sorted(results.keys())
+    
+    # Get all main classes (excluding stranger)
+    classes = set()
+    for thresh_results in results.values():
+        if 'fpr_per_class' in thresh_results:
+            for cls in thresh_results['fpr_per_class'].keys():
+                classes.add(cls)
+    classes = sorted(list(classes))
+    
+    if len(classes) == 0:
+        print("⚠️ No FPR data to plot")
+        return
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    for cls in classes:
+        fpr_values = []
+        for thresh in thresholds:
+            if 'fpr_per_class' in results[thresh] and cls in results[thresh]['fpr_per_class']:
+                fpr_values.append(results[thresh]['fpr_per_class'][cls])
+            else:
+                fpr_values.append(0.0)
+        
+        ax.plot(thresholds, fpr_values, marker='o', label=cls, linewidth=2, markersize=6)
+    
+    ax.set_xlabel('Threshold', fontsize=12)
+    ax.set_ylabel('False Positive Rate (FPR)', fontsize=12)
+    ax.set_title('False Positive Rate vs Threshold (MLP)\n(Stranger images misclassified)', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim([min(thresholds), max(thresholds)])
+    max_fpr_vals = [max(results[t]['fpr_per_class'].values()) if 'fpr_per_class' in results[t] and len(results[t]['fpr_per_class']) > 0 else 0 for t in thresholds]
+    max_fpr = max(max_fpr_vals) if max_fpr_vals else 0
+    ax.set_ylim([0, max_fpr * 1.1 if max_fpr > 0 else 0.1])
+    
+    # Set x-axis to show reasonable number of ticks
+    if len(thresholds) <= 15:
+        ax.set_xticks(thresholds)
+    else:
+        step = max(1, len(thresholds) // 15)
+        ax.set_xticks(thresholds[::step])
+    
+    plt.tight_layout()
+    output_path = os.path.join(output_dir, 'fpr_vs_threshold.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"✅ FPR plot saved to {output_path}")
+
+
+def plot_fpr_vs_epochs(fpr_history, output_dir):
+    """Plot FPR across epochs for each main class (MLP4)"""
+    if len(fpr_history) == 0:
+        print("⚠️ No FPR history to plot")
+        return
+    
+    epochs = range(1, len(fpr_history) + 1)
+    
+    # Get all classes from first epoch
+    classes = sorted(list(fpr_history[0].keys()))
+    
+    if len(classes) == 0:
+        print("⚠️ No FPR data to plot")
+        return
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    for cls in classes:
+        fpr_values = [fpr_history[epoch-1].get(cls, 0.0) for epoch in epochs]
+        ax.plot(epochs, fpr_values, marker='o', label=cls, linewidth=2, markersize=6)
+    
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('False Positive Rate (FPR)', fontsize=12)
+    ax.set_title('False Positive Rate vs Epochs (MLP4)\n(Stranger images misclassified)', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xticks(range(1, len(epochs) + 1))
+    ax.set_xlim([0.5, len(epochs) + 0.5])
+    max_fpr = max([max(epoch_fpr.values()) if epoch_fpr else 0 for epoch_fpr in fpr_history])
+    ax.set_ylim([0, max_fpr * 1.1 if max_fpr > 0 else 0.1])
+    
+    plt.tight_layout()
+    output_path = os.path.join(output_dir, 'fpr_vs_epochs.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"✅ FPR vs epochs plot saved to {output_path}")
 
 
 def run_experiment(data_dir='data', output_dir='results/mlp', 
@@ -375,6 +504,15 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
     val_losses = []
     train_accs = []
     val_accs = []
+    fpr_history = []  # Track FPR across epochs for MLP4
+    
+    # Prepare validation data with labels for FPR computation (for MLP4)
+    val_embeddings_for_fpr = None
+    val_labels_for_fpr = None
+    if stranger_approach == '4class' and STRANGER_CLASS in unique_labels:
+        # Use validation embeddings and labels directly (already split)
+        val_embeddings_for_fpr = torch.tensor(np.array(val_emb_split), dtype=torch.float32).to(DEVICE)
+        val_labels_for_fpr = val_labels_split  # Original string labels
     
     for epoch in range(epochs):
         # Training phase
@@ -424,6 +562,18 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
         val_acc = val_correct / val_total
         val_losses.append(val_loss_avg)
         val_accs.append(val_acc)
+        
+        # Compute FPR on validation set for MLP4 (track across epochs)
+        if stranger_approach == '4class' and val_embeddings_for_fpr is not None:
+            mlp.eval()
+            with torch.no_grad():
+                val_outputs = mlp(val_embeddings_for_fpr)
+                _, val_predicted = torch.max(val_outputs, 1)
+                val_y_pred = [idx2label[pred.item()] for pred in val_predicted]
+            
+            # Compute FPR for this epoch
+            epoch_fpr = compute_fpr_per_class(val_labels_for_fpr, val_y_pred, train_classes)
+            fpr_history.append(epoch_fpr)
         
         if (epoch + 1) % 5 == 0 or epoch == 0:
             print(f"  Epoch {epoch+1}/{epochs}, Train Loss: {train_loss_avg:.4f}, Train Acc: {train_acc:.4f}, "
@@ -490,6 +640,10 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
             test_classes = set(test_labels + y_pred)
             all_classes = sorted(list(test_classes))
             metrics_per_class = compute_metrics_per_class(test_labels, y_pred, all_classes)
+            
+            # Compute FPR for each main class
+            fpr_per_class = compute_fpr_per_class(test_labels, y_pred, train_classes)
+            
             overall_accuracy = accuracy_score(test_labels, y_pred)
             
             # Save confusion matrix
@@ -499,6 +653,7 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
             all_results[threshold] = {
                 'overall_accuracy': float(overall_accuracy),
                 'metrics_per_class': metrics_per_class,
+                'fpr_per_class': fpr_per_class,
                 'confusion_matrix_path': cm_path
             }
         
@@ -506,12 +661,16 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
         print("\n📈 Creating metrics vs threshold plots...")
         plot_metrics_vs_threshold_mlp(all_results, output_dir)
         
+        # Create FPR vs threshold plot
+        plot_fpr_vs_threshold_mlp(all_results, output_dir)
+        
         # Save results to JSON
         results_json = {}
         for thresh, results in all_results.items():
             results_json[str(thresh)] = {
                 'overall_accuracy': results['overall_accuracy'],
-                'metrics_per_class': results['metrics_per_class']
+                'metrics_per_class': results['metrics_per_class'],
+                'fpr_per_class': results['fpr_per_class']
             }
         
         json_path = os.path.join(output_dir, 'results.json')
@@ -525,6 +684,22 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
         print(f"   Saving training curves for best threshold...")
         plot_training_curves(train_losses, val_losses, train_accs, val_accs, output_dir, 
                            suffix=f'_best_thresh_{best_thresh:.3f}')
+        
+        # Save best model
+        models_dir = 'models'
+        os.makedirs(models_dir, exist_ok=True)
+        model_path = os.path.join(models_dir, 'mlp3_model.pth')
+        model_data = {
+            'model_state_dict': mlp.state_dict(),
+            'label2idx': label2idx,
+            'idx2label': idx2label,
+            'threshold': float(best_thresh),
+            'input_dim': 512,
+            'num_classes': len(unique_labels)
+        }
+        torch.save(model_data, model_path)
+        print(f"✅ Best model saved to {model_path}")
+        print(f"   Threshold: {best_thresh:.3f}")
         
         # Print summary
         print("\n" + "="*60)
@@ -562,14 +737,38 @@ def run_experiment(data_dir='data', output_dir='results/mlp',
         print("\n📈 Creating training curves...")
         plot_training_curves(train_losses, val_losses, train_accs, val_accs, output_dir)
         
+        # Plot FPR across epochs
+        if len(fpr_history) > 0:
+            print("\n📈 Creating FPR vs epochs plot...")
+            plot_fpr_vs_epochs(fpr_history, output_dir)
+        
+        # Compute FPR on test set for final evaluation
+        fpr_per_class = compute_fpr_per_class(test_labels, y_pred, train_classes)
+        
         # Save confusion matrix
         cm_path = os.path.join(output_dir, 'confusion_matrix.png')
         plot_confusion_matrix(test_labels, y_pred, all_classes, cm_path)
+        
+        # Save best model
+        models_dir = 'models'
+        os.makedirs(models_dir, exist_ok=True)
+        model_path = os.path.join(models_dir, 'mlp4_model.pth')
+        model_data = {
+            'model_state_dict': mlp.state_dict(),
+            'label2idx': label2idx,
+            'idx2label': idx2label,
+            'threshold': None,  # No threshold for 4class approach
+            'input_dim': 512,
+            'num_classes': len(unique_labels)
+        }
+        torch.save(model_data, model_path)
+        print(f"\n✅ Best model saved to {model_path}")
         
         # Save results
         results = {
             'overall_accuracy': float(overall_accuracy),
             'metrics_per_class': metrics_per_class,
+            'fpr_per_class': fpr_per_class,
             'hyperparameters': {
                 'epochs': epochs,
                 'batch_size': batch_size,
